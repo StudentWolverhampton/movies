@@ -1,82 +1,93 @@
 <?php
 session_start();
-require_once('db.php');
+require 'db.php';
+include __DIR__ . '/header.php'; // Include the header with navbar and logout button
 
-// Fetch books
-$sql = "SELECT * FROM books";
-$result = $conn->query($sql);
+// Get the search query from the URL parameters
+$query = isset($_GET['query']) ? $_GET['query'] : '';  
 
-// Handle Create, Update, Delete operations
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['create'])) {
-        $title = $_POST['title'];
-        $author = $_POST['author'];
-        $year = $_POST['year'];
-        $genre = $_POST['genre'];
-
-        $sql = "INSERT INTO books (title, author, year, genre) VALUES ('$title', '$author', '$year', '$genre')";
-        if ($conn->query($sql) === TRUE) {
-            echo "New record created successfully";
-        }
-    }
-}
-
-// Handle Delete
-if (isset($_GET['delete'])) {
-    $id = $_GET['delete'];
-    $sql = "DELETE FROM books WHERE id = $id";
-    if ($conn->query($sql) === TRUE) {
-        echo "Record deleted successfully";
-    }
-}
-
-// Close connection
-$conn->close();
+// Prepare and execute the SQL query to fetch movies
+$sql = "SELECT * FROM movies WHERE title LIKE ? OR genre LIKE ? OR release_year LIKE ?";
+$stmt = $conn->prepare($sql);
+$search = "%$query%";
+$stmt->bind_param("sss", $search, $search, $search);
+$stmt->execute();
+$result = $stmt->get_result();
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Bookstore</title>
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
+<!-- Full-page background fix -->
+<style>
+    /* Reset margin and padding for html and body */
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+    }
 
-<h1>Bookstore</h1>
+    /* Make the main container cover full height */
+    .full-page {
+        background-color: #121212;
+        color: #fff;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
 
-<!-- Add new book form -->
-<form method="POST">
-    <input type="text" name="title" placeholder="Title" required>
-    <input type="text" name="author" placeholder="Author" required>
-    <input type="number" name="year" placeholder="Year" required>
-    <input type="text" name="genre" placeholder="Genre" required>
-    <button type="submit" name="create">Add Book</button>
-</form>
+    /* Make the footer stay at the bottom */
+    footer {
+        margin-top: auto;
+        padding: 10px 0;
+        background-color: #1e1e1e;
+        color: #fff;
+        text-align: center;
+    }
+</style>
 
-<!-- Display books -->
-<h2>Books List</h2>
-<table>
-    <tr>
-        <th>Title</th>
-        <th>Author</th>
-        <th>Year</th>
-        <th>Genre</th>
-        <th>Actions</th>
-    </tr>
-    <?php while($row = $result->fetch_assoc()): ?>
-    <tr>
-        <td><?php echo $row['title']; ?></td>
-        <td><?php echo $row['author']; ?></td>
-        <td><?php echo $row['year']; ?></td>
-        <td><?php echo $row['genre']; ?></td>
-        <td>
-            <a href="edit.php?id=<?php echo $row['id']; ?>">Edit</a>
-            <a href="index.php?delete=<?php echo $row['id']; ?>">Delete</a>
-        </td>
-    </tr>
-    <?php endwhile; ?>
-</table>
+<div class="full-page">
+    <div class="container mt-4" style="background-color: #121212; color: #fff; padding: 20px; border-radius: 10px;">
+        <!-- Search Bar -->
+        <form action="index.php" method="GET" class="mb-4">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    name="query" 
+                    class="form-control" 
+                    placeholder="Search movies..." 
+                    value="<?php echo htmlspecialchars($query); ?>" 
+                    style="background-color: #1e1e1e; color: #fff; border: 1px solid #444;"
+                >
+                <button type="submit" class="btn btn-primary">Search</button>
+            </div>
+        </form>
 
-</body>
-</html>
+        <!-- Movies Grid -->
+        <div class="row">
+            <?php if ($result->num_rows > 0): ?>
+                <?php while ($movie = $result->fetch_assoc()): ?>
+                    <div class="col-md-4 mb-4">
+                        <div class="card" style="background-color: #1e1e1e; color: #fff; border: 1px solid #444;">
+                            <!-- Dynamically display movie image -->
+                            <img 
+                                src="<?php echo !empty($movie['image_url']) ? $movie['image_url'] : 'assets/images/default-image.jpg'; ?>" 
+                                class="card-img-top" 
+                                alt="<?php echo $movie['title']; ?>" 
+                                style="height: 250px; object-fit: cover;"
+                            >
+                            <div class="card-body">
+                                <h5 class="card-title" style="color: #00bcd4;"><?php echo $movie['title']; ?></h5>
+                                <p class="card-text">
+                                    <?php echo substr($movie['description'], 0, 100); ?>...
+                                </p>
+                                <a href="movie_details.php?id=<?php echo $movie['id']; ?>" class="btn btn-primary">View Details</a>
+                            </div>
+                        </div>
+                    </div>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <p class="text-center" style="color: #aaa;">No movies found for "<?php echo htmlspecialchars($query); ?>"</p>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <?php include __DIR__ . '/footer.php'; // Include footer ?>
+</div>
